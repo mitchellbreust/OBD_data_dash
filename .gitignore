@@ -17,7 +17,6 @@
 *.out
 
 # Go workspace and cache
-*.log
 *.prof
 *.trace
 *.tmp
@@ -63,8 +62,7 @@ __pycache__/
 # Device Agent Specific
 # =======================================
 # Temporary data and configuration files
-device_agent/internal/data/*
-!device_agent/internal/data/.keep
+
 
 # Local runtime files (e.g., test serial logs)
 *.seriallog
