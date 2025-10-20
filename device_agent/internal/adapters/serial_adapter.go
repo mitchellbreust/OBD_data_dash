@@ -78,7 +78,7 @@ func OsConnectionHandler() (serial.Port, error) {
 			continue
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 
 		buf := make([]byte, 256)
 		n, err := port.Read(buf)
@@ -132,8 +132,8 @@ func (s *SerialAdapter) Write(data string) error {
 	}
 
 	elapsed := time.Since(s.lastOperation)
-	if elapsed < 500*time.Millisecond {
-		time.Sleep(500*time.Millisecond - elapsed)
+	if elapsed < 300*time.Millisecond {
+		time.Sleep(300*time.Millisecond - elapsed)
 	}
 
 	_, err := s.con.Write([]byte(data))
@@ -153,8 +153,8 @@ func (s *SerialAdapter) Read() (string, error) {
 	}
 
 	elapsed := time.Since(s.lastOperation)
-	if elapsed < 500*time.Millisecond {
-		time.Sleep(500*time.Millisecond - elapsed)
+	if elapsed < 300*time.Millisecond {
+		time.Sleep(300*time.Millisecond - elapsed)
 	}
 
 	buf := make([]byte, 1026)
