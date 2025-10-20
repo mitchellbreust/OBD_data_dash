@@ -118,3 +118,44 @@ func (s *SerialAdapter) Connect() error {
 	fmt.Println("✅ Serial connection established and stored in adapter.")
 	return nil
 }
+
+// Connect attempts to find and connect to an OBD-II adapter and store it in the struct.
+func (s *SerialAdapter) Close() error {
+	err :=s.con.Close()
+	if err != nil {
+		return err
+	}
+}
+
+// Write sends data (commands) to the OBD-II adapter.
+func (s *SerialAdapter) Write(data string) error {
+	if s.con == nil {
+		return fmt.Errorf("no serial connection established")
+	}
+
+	// Write the data
+	_, err := s.con.Write([]byte(data))
+	if err != nil {
+		return fmt.Errorf("failed to write to OBD adapter: %v", err)
+	}
+
+	fmt.Printf("➡️ Sent: %q\n", data)
+	return nil
+}
+
+// Read reads the response from the OBD-II adapter.
+func (s *SerialAdapter) Read() (string, error) {
+	if s.con == nil {
+		return "", fmt.Errorf("no serial connection established")
+	}
+
+	buf := make([]byte, 256)
+	n, err := s.con.Read(buf)
+	if err != nil {
+		return "", fmt.Errorf("failed to read from OBD adapter: %v", err)
+	}
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	fmt.Printf("⬅️ Received: %q\n", resp)
+	return resp, nil
+}
