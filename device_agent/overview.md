@@ -12,6 +12,18 @@ The goal of this structure is to keep each concern isolated and replaceable — 
 ---
 
 ## 📂 Project Structure
+```text
+device_agent/
+├── cmd/
+│   └── main.go
+├── go.mod
+└── internal/
+    ├── adapters/
+    ├── config/
+    ├── data/
+    ├── protocols/
+    └── transport/
+```
 
 ## 🧭 Top-Level Directories
 
@@ -38,17 +50,17 @@ type Adapter interface {
 ```
 Each adapter type (e.g. BluetoothAdapter, WiFiAdapter) provides its own implementation, allowing the rest of the system to remain agnostic to the physical connection.
 
-#### internal/config/
+#### `internal/config/`
 - Handles loading and validation of configuration files or environment variables.
 - Examples include serial port names, baud rates, server URLs, and upload intervals.
 - This layer ensures runtime parameters are consistent across platforms.
 
-#### internal/data/
+#### `internal/data/`
 - Provides local data buffering and optional storage (e.g. in-memory queue or SQLite).
 - If the device loses connectivity, this layer ensures readings are safely cached until transmission resumes.
 - It may also perform lightweight aggregation or timestamping.
 
-#### internal/protocols/
+#### `internal/protocols/`
 - Implements OBD-II protocol logic — translating hexadecimal responses into meaningful sensor values.
 For example:
 - Sending PID requests like 010C (RPM) or 010D (Speed)
@@ -56,7 +68,7 @@ For example:
 - Managing command timing and standard PIDs defined by SAE J1979
 - This layer is independent of the communication method — it only understands OBD-II messages.
 
-#### internal/transport/
+#### `internal/transport/`
 - Responsible for transmitting collected data to the backend service.
 - Implements methods for different transport protocols such as HTTP, MQTT, or WebSockets.
 - It abstracts away authentication, batching, retry logic, and offline queuing.
