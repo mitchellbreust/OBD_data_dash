@@ -11,6 +11,7 @@ import (
 
 type SerialAdapter struct {
 	con serial.Port
+	lastOperation   time.Time
 }
 
 // isOBD2Response checks if a response buffer looks like an OBD-II adapter response.
@@ -29,7 +30,6 @@ func isOBD2Response(buf []byte, portName string) bool {
 		fmt.Printf("✅ Valid OBD-II adapter detected on %s: %q\n", portName, response)
 		return true
 	}
-
 	return false
 }
 
@@ -40,12 +40,10 @@ func OsConnectionHandler() (serial.Port, error) {
 		{BaudRate: 38400},
 		{BaudRate: 9600},
 	}
-
 	ports, err := serial.GetPortsList()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ports: %v", err)
 	}
-
 	if len(ports) == 0 {
 		log.Println("No serial ports found.")
 		return nil, nil
@@ -89,7 +87,6 @@ func OsConnectionHandler() (serial.Port, error) {
 			port.Close()
 			continue
 		}
-
 		if isOBD2Response(buf[:n], portName) {
 			fmt.Printf("🎯 Using %s as OBD-II adapter.\n", portName)
 			return port, nil // ✅ keep it open and return it
@@ -98,7 +95,6 @@ func OsConnectionHandler() (serial.Port, error) {
 			port.Close()
 		}
 	}
-
 	fmt.Println("❌ No OBD-II adapters detected.")
 	return nil, nil
 }
@@ -115,6 +111,7 @@ func (s *SerialAdapter) Connect() error {
 	}
 
 	s.con = res
+	s.lastOperation = time.Now()
 	fmt.Println("✅ Serial connection established and stored in adapter.")
 	return nil
 }
@@ -125,6 +122,7 @@ func (s *SerialAdapter) Close() error {
 	if err != nil {
 		return err
 	}
+	return nil
 }
 
 // Write sends data (commands) to the OBD-II adapter.
@@ -133,13 +131,18 @@ func (s *SerialAdapter) Write(data string) error {
 		return fmt.Errorf("no serial connection established")
 	}
 
-	// Write the data
+	elapsed := time.Since(s.lastOperation)
+	if elapsed < 500*time.Millisecond {
+		time.Sleep(500*time.Millisecond - elapsed)
+	}
+
 	_, err := s.con.Write([]byte(data))
 	if err != nil {
 		return fmt.Errorf("failed to write to OBD adapter: %v", err)
 	}
 
 	fmt.Printf("➡️ Sent: %q\n", data)
+	s.lastOperation = time.Now()
 	return nil
 }
 
@@ -149,7 +152,12 @@ func (s *SerialAdapter) Read() (string, error) {
 		return "", fmt.Errorf("no serial connection established")
 	}
 
-	buf := make([]byte, 256)
+	elapsed := time.Since(s.lastOperation)
+	if elapsed < 500*time.Millisecond {
+		time.Sleep(500*time.Millisecond - elapsed)
+	}
+
+	buf := make([]byte, 1026)
 	n, err := s.con.Read(buf)
 	if err != nil {
 		return "", fmt.Errorf("failed to read from OBD adapter: %v", err)
@@ -157,5 +165,6 @@ func (s *SerialAdapter) Read() (string, error) {
 
 	resp := strings.TrimSpace(string(buf[:n]))
 	fmt.Printf("⬅️ Received: %q\n", resp)
+	s.lastOperation = time.Now()
 	return resp, nil
 }
