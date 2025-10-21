@@ -46,7 +46,10 @@ func isSupportedResponse(resp string, pid byte) bool {
 	}
 
 	// Typical valid response starts with "41" (Mode 01 reply)
-	// and echoes back the PID code: e.g. "410C" for Engine RPM
-	expected := fmt.Sprintf("41%02X", pid)
-	return strings.Contains(resp, expected)
+	// and echoes back the PID code: e.g. "41 0C" or "410C" for Engine RPM
+	// Check both formats: with and without spaces
+	expectedNoSpace := fmt.Sprintf("41%02X", pid)
+	expectedWithSpace := fmt.Sprintf("41 %02X", pid)
+	
+	return strings.Contains(resp, expectedNoSpace) || strings.Contains(resp, expectedWithSpace)
 }

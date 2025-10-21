@@ -31,17 +31,28 @@ func main() {
 		fmt.Println("✅ Adapter closed cleanly.")
 	}()
 
-	// Detect supported PIDs
+	// Detect supported PIDs (now with smaller subset)
+	fmt.Println("🔍 Detecting supported PIDs...")
 	supported, err := protocals.DetectSupportedPids(&serialAdap)
 	if err != nil {
 		fmt.Println("❌ Stopping main program, error:", err)
 		return
 	}
 
+	fmt.Printf("✅ Found %d supported PIDs\n", len(supported))
+	for _, pid := range supported {
+		fmt.Printf("  - %s (0x%02X)\n", pid.Name, pid.PID)
+	}
+
 	ch := make(chan []protocals.PidResponse)
 	go data.Listen(ch)
 
-	// Main loop: query data continuously
+	ch2 := make(chan []protocals.PidTroubleCode)
+	go data.WriteTroubleCodes(ch2)
+
+	// Set lastErrorRead to 90 seconds ago so error check runs immediately
+	lastErrorRead := time.Now().Add(-90 * time.Second)
+	fmt.Println("🚗 Starting continuous data collection...")
 	for {
 		res, err := protocals.QueryPids(&serialAdap, supported)
 		if err != nil {
@@ -51,5 +62,25 @@ func main() {
 
 		ch <- res
 		time.Sleep(300 * time.Millisecond)
+
+		// Check if 90 seconds have passed since last error code read
+		if time.Since(lastErrorRead).Seconds() >= 90 {
+			lastErrorRead = time.Now()
+			fmt.Println("🔍 Checking for trouble codes...")
+			res1, err := protocals.GetTroubleCodes(&serialAdap)
+			if err != nil {
+				fmt.Printf("⚠️ Error reading trouble codes: %v\n", err)
+				continue
+			}
+			if len(res1) > 0 {
+				fmt.Printf("🚨 Found %d trouble codes\n", len(res1))
+				for _, code := range res1 {
+					fmt.Printf("  - %s: %s\n", code.Value, code.Des)
+				}
+			} else {
+				fmt.Println("✅ No trouble codes found")
+			}
+			ch2 <- res1
+		}
 	}
 }
