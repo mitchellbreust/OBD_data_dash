@@ -125,16 +125,21 @@ func (s *SerialAdapter) Close() error {
 	return nil
 }
 
-// Write sends data (commands) to the OBD-II adapter.
+// Write sends a command to the adapter, ensuring the ELM327 is ready first.
 func (s *SerialAdapter) Write(data string) error {
 	if s.con == nil {
 		return fmt.Errorf("no serial connection established")
 	}
 
+	// Always wait a short time after last operation
 	elapsed := time.Since(s.lastOperation)
 	if elapsed < 300*time.Millisecond {
 		time.Sleep(300*time.Millisecond - elapsed)
 	}
+
+	// Flush any leftover data in the buffer before sending
+	s.con.ResetInputBuffer()
+	s.con.ResetOutputBuffer()
 
 	_, err := s.con.Write([]byte(data))
 	if err != nil {
@@ -146,25 +151,45 @@ func (s *SerialAdapter) Write(data string) error {
 	return nil
 }
 
-// Read reads the response from the OBD-II adapter.
+const defaultReadTimeout = 5 * time.Second
+
 func (s *SerialAdapter) Read() (string, error) {
 	if s.con == nil {
 		return "", fmt.Errorf("no serial connection established")
 	}
 
-	elapsed := time.Since(s.lastOperation)
-	if elapsed < 300*time.Millisecond {
-		time.Sleep(300*time.Millisecond - elapsed)
+	buf := make([]byte, 256)
+	var response strings.Builder
+	start := time.Now()
+
+	for {
+		n, err := s.con.Read(buf)
+		if err != nil {
+			return response.String(), fmt.Errorf("read error: %v", err)
+		}
+		response.Write(buf[:n])
+		resp := response.String()
+
+		// ✅ check for end prompt
+		if strings.Contains(resp, ">") {
+			break
+		}
+
+		// ✅ handle “SEARCHING…” or “NO DATA”
+		if strings.Contains(resp, "SEARCHING") {
+			if time.Since(start) > defaultReadTimeout {
+				return resp, fmt.Errorf("timeout while searching for protocol")
+			}
+		}
+
+		// ✅ safety timeout
+		if time.Since(start) > defaultReadTimeout {
+			return resp, fmt.Errorf("timeout waiting for prompt")
+		}
 	}
 
-	buf := make([]byte, 1026)
-	n, err := s.con.Read(buf)
-	if err != nil {
-		return "", fmt.Errorf("failed to read from OBD adapter: %v", err)
-	}
-
-	resp := strings.TrimSpace(string(buf[:n]))
-	fmt.Printf("⬅️ Received: %q\n", resp)
+	cleaned := strings.TrimSpace(response.String())
+	fmt.Printf("⬅️ Received: %q\n", cleaned)
 	s.lastOperation = time.Now()
-	return resp, nil
+	return cleaned, nil
 }

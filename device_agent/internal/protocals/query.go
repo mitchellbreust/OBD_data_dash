@@ -41,6 +41,7 @@ func QueryPids(adapter *adapter.SerialAdapter, pids []Pid) ([]PidResponse, error
 			})
 			continue
 		}
+		
 		resp = cleanResponse(resp)
 		expected := fmt.Sprintf("41%02X", pid.PID)
 		valid := strings.HasPrefix(resp, expected)
