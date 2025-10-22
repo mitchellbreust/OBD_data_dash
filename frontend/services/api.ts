@@ -1,6 +1,6 @@
 // API service layer for OBD Dashboard (real backend integration)
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://obd-data-dash.onrender.com"
 
 function getAuthHeader() {
   if (typeof window === "undefined") return {}
