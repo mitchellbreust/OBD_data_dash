@@ -13,11 +13,15 @@ app = Flask(__name__)
 # Secret key from environment for production
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this-in-production')
 
-# CORS: allow origins from env (comma-separated) or local dev defaults
-allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+# CORS: hardcode allowed origins for production and local dev
+allowed_origins = [
+    "https://obd-data-dash.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 cors = CORS(
     app,
-    resources={r"/*": {"origins": [o.strip() for o in allowed_origins if o.strip()]}},
+    resources={r"/*": {"origins": allowed_origins}},
     supports_credentials=False,
     allow_headers=["Authorization", "Content-Type"],
 )
