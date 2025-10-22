@@ -8,17 +8,23 @@ import { Activity, RefreshCw, Gauge, Thermometer, Zap } from "lucide-react"
 import { dataAPI } from "@/services/api"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
-interface OBDData {
+interface OBDDataRow {
+  id?: number
   timestamp: string
-  "Vehicle Speed": number
-  "Engine Coolant Temperature": number
-  "Throttle Position": number
-  "Intake Manifold Pressure": number
-  "Intake Air Temperature": number
-  "MAF Air Flow Rate": number
-  "Run Time Since Engine Start": number
-  "Barometric Pressure": number
-  RPM: number
+  speed?: number
+  rpm?: number
+  cool_temp?: number
+  throttle_pos?: number
+  intake_mani_pres?: number
+  intake_air_temp?: number
+  maf_air_flow_rate?: number
+  baro_pressure?: number
+  control_module_voltage?: number
+  engine_load?: number
+  fuel_level?: number
+  fuel_pressure?: number
+  ambient_air_temp?: number
+  timing_advance?: number
 }
 
 interface Stats {
@@ -29,7 +35,7 @@ interface Stats {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [data, setData] = useState<OBDData[]>([])
+  const [data, setData] = useState<OBDDataRow[]>([])
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
 
@@ -56,10 +62,18 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     try {
-      const response = await dataAPI.getData()
-      if (response.success) {
-        setData(response.data)
+      const response = await dataAPI.getData({
+        limit: 500,
+      })
+      if (response?.data) {
+        if (response.data.length > 0) {
+          // Log the first row returned by the backend
+          console.log("/data first row:", response.data[0])
+        } else {
+          console.log("/data returned no rows")
+        }
       }
+      setData(response?.data || [])
     } catch (error) {
       console.error("Failed to fetch data:", error)
     } finally {
@@ -67,10 +81,13 @@ export default function DashboardPage() {
     }
   }
 
-  const calculateStats = (key: keyof OBDData): Stats => {
-    if (data.length === 0) return { min: 0, max: 0, avg: 0 }
+  const hasData = (key: keyof OBDDataRow) => data.some((d) => typeof d[key] === "number")
 
-    const values = data.map((d) => Number(d[key])).filter((v) => !Number.isNaN(v))
+  const calculateStats = (key: keyof OBDDataRow): Stats => {
+    const values = data
+      .map((d) => (typeof d[key] === "number" ? (d[key] as number) : NaN))
+      .filter((v) => !Number.isNaN(v))
+    if (values.length === 0) return { min: 0, max: 0, avg: 0 }
     return {
       min: Math.min(...values),
       max: Math.max(...values),
@@ -78,14 +95,30 @@ export default function DashboardPage() {
     }
   }
 
-  const formatChartData = () => {
+  const formatTime = (ts: string) => {
+    const d = new Date(ts)
+    if (Number.isNaN(d.getTime())) return ""
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  }
+
+  const formatSpeedRpmData = () => {
     return data.map((d, index) => ({
-      time: index,
-      speed: d["Vehicle Speed"],
-      rpm: d.RPM / 10, // Scale down for better visualization
-      temp: d["Engine Coolant Temperature"],
-      throttle: d["Throttle Position"],
+      time: formatTime(d.timestamp),
+      speed: d.speed ?? null,
+      rpm: typeof d.rpm === "number" ? d.rpm / 10 : null,
     }))
+  }
+
+  const formatTempsData = () => {
+    return data.map((d, index) => ({
+      time: formatTime(d.timestamp),
+      cool_temp: d.cool_temp ?? null,
+      intake_air_temp: d.intake_air_temp ?? null,
+    }))
+  }
+
+  const formatSeries = (key: keyof OBDDataRow) => {
+    return data.map((d, index) => ({ time: formatTime(d.timestamp), value: (d[key] as number) ?? null }))
   }
 
   if (loading) {
@@ -99,9 +132,9 @@ export default function DashboardPage() {
     )
   }
 
-  const speedStats = calculateStats("Vehicle Speed")
-  const rpmStats = calculateStats("RPM")
-  const tempStats = calculateStats("Engine Coolant Temperature")
+  const speedStats = calculateStats("speed")
+  const rpmStats = calculateStats("rpm")
+  const tempStats = calculateStats("cool_temp")
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -142,10 +175,16 @@ export default function DashboardPage() {
               <Gauge className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{speedStats.avg.toFixed(1)} km/h</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Min: {speedStats.min.toFixed(0)} | Max: {speedStats.max.toFixed(0)}
-              </p>
+              {hasData("speed") ? (
+                <>
+                  <div className="text-3xl font-bold text-foreground">{speedStats.avg.toFixed(1)} km/h</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Min: {speedStats.min.toFixed(0)} | Max: {speedStats.max.toFixed(0)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No speed data available for this vehicle.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -155,10 +194,16 @@ export default function DashboardPage() {
               <Zap className="h-4 w-4 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{rpmStats.avg.toFixed(0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Min: {rpmStats.min.toFixed(0)} | Max: {rpmStats.max.toFixed(0)}
-              </p>
+              {hasData("rpm") ? (
+                <>
+                  <div className="text-3xl font-bold text-foreground">{rpmStats.avg.toFixed(0)}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Min: {rpmStats.min.toFixed(0)} | Max: {rpmStats.max.toFixed(0)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No RPM data available for this vehicle.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -168,10 +213,16 @@ export default function DashboardPage() {
               <Thermometer className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{tempStats.avg.toFixed(1)}°C</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Min: {tempStats.min.toFixed(0)} | Max: {tempStats.max.toFixed(0)}
-              </p>
+              {hasData("cool_temp") ? (
+                <>
+                  <div className="text-3xl font-bold text-foreground">{tempStats.avg.toFixed(1)}°C</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Min: {tempStats.min.toFixed(0)} | Max: {tempStats.max.toFixed(0)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No coolant temperature data available.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -186,10 +237,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={formatChartData()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
+              <LineChart data={formatSpeedRpmData()}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
@@ -199,22 +250,12 @@ export default function DashboardPage() {
                   }}
                 />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="speed"
-                  stroke="hsl(var(--primary))"
-                  name="Speed (km/h)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="rpm"
-                  stroke="hsl(var(--secondary))"
-                  name="RPM (÷10)"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                {hasData("speed") && (
+                  <Line type="monotone" dataKey="speed" stroke="#60A5FA" name="Speed (km/h)" strokeWidth={2} dot={false} />
+                )}
+                {hasData("rpm") && (
+                  <Line type="monotone" dataKey="rpm" stroke="#F59E0B" name="RPM (÷10)" strokeWidth={2} dot={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -230,10 +271,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
+              <LineChart data={formatTempsData()}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
@@ -243,22 +284,12 @@ export default function DashboardPage() {
                   }}
                 />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="Engine Coolant Temperature"
-                  stroke="hsl(var(--destructive))"
-                  name="Coolant Temp (°C)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="Intake Air Temperature"
-                  stroke="hsl(var(--chart-3))"
-                  name="Intake Air Temp (°C)"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                {hasData("cool_temp") && (
+                  <Line type="monotone" dataKey="cool_temp" stroke="#EF4444" name="Coolant Temp (°C)" strokeWidth={2} dot={false} />
+                )}
+                {hasData("intake_air_temp") && (
+                  <Line type="monotone" dataKey="intake_air_temp" stroke="#34D399" name="Intake Air Temp (°C)" strokeWidth={2} dot={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -273,10 +304,10 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
+                <LineChart data={formatSeries("throttle_pos")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
@@ -285,13 +316,11 @@ export default function DashboardPage() {
                       color: "hsl(var(--foreground))",
                     }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="Throttle Position"
-                    stroke="hsl(var(--chart-4))"
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  {hasData("throttle_pos") ? (
+                    <Line type="monotone" dataKey="value" stroke="#A78BFA" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No throttle position data available.</text>
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -304,10 +333,10 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
+                <LineChart data={formatSeries("maf_air_flow_rate")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
@@ -316,13 +345,11 @@ export default function DashboardPage() {
                       color: "hsl(var(--foreground))",
                     }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="MAF Air Flow Rate"
-                    stroke="hsl(var(--chart-5))"
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  {hasData("maf_air_flow_rate") ? (
+                    <Line type="monotone" dataKey="value" stroke="#F472B6" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No MAF data available.</text>
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -339,10 +366,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
+              <LineChart data={data.map((d) => ({
+                time: formatTime(d.timestamp),
+                intake_mani_pres: d.intake_mani_pres ?? null,
+                baro_pressure: d.baro_pressure ?? null,
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
@@ -352,26 +383,137 @@ export default function DashboardPage() {
                   }}
                 />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="Intake Manifold Pressure"
-                  stroke="hsl(var(--primary))"
-                  name="Manifold Pressure (kPa)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="Barometric Pressure"
-                  stroke="hsl(var(--secondary))"
-                  name="Barometric Pressure (kPa)"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                {hasData("intake_mani_pres") && (
+                  <Line type="monotone" dataKey="intake_mani_pres" stroke="#38BDF8" name="Manifold Pressure (kPa)" strokeWidth={2} dot={false} />
+                )}
+                {hasData("baro_pressure") && (
+                  <Line type="monotone" dataKey="baro_pressure" stroke="#FBBF24" name="Barometric Pressure (kPa)" strokeWidth={2} dot={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* Control Module Voltage */}
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-foreground">Control Module Voltage</CardTitle>
+            <CardDescription className="text-muted-foreground">Electrical system voltage over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={formatSeries("control_module_voltage")}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    color: "hsl(var(--foreground))",
+                  }}
+                />
+                {hasData("control_module_voltage") ? (
+                  <Line type="monotone" dataKey="value" stroke="#22D3EE" strokeWidth={2} dot={false} />
+                ) : (
+                  <text x={20} y={20} fill="hsl(var(--muted-foreground))">No voltage data available.</text>
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Additional Common PIDs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-foreground">Engine Load</CardTitle>
+              <CardDescription className="text-muted-foreground">Calculated engine load (%)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={formatSeries("engine_load")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }} />
+                  {hasData("engine_load") ? (
+                    <Line type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No engine load data available.</text>
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-foreground">Fuel Level</CardTitle>
+              <CardDescription className="text-muted-foreground">Estimated fuel level (%)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={formatSeries("fuel_level")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }} />
+                  {hasData("fuel_level") ? (
+                    <Line type="monotone" dataKey="value" stroke="#06B6D4" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No fuel level data available.</text>
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-foreground">Ambient Air Temperature</CardTitle>
+              <CardDescription className="text-muted-foreground">Ambient temperature (°C)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={formatSeries("ambient_air_temp")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }} />
+                  {hasData("ambient_air_temp") ? (
+                    <Line type="monotone" dataKey="value" stroke="#F87171" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No ambient air temp data available.</text>
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-foreground">Fuel Pressure</CardTitle>
+              <CardDescription className="text-muted-foreground">Fuel rail pressure (kPa)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={formatSeries("fuel_pressure")}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="time" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }} />
+                  {hasData("fuel_pressure") ? (
+                    <Line type="monotone" dataKey="value" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                  ) : (
+                    <text x={20} y={20} fill="hsl(var(--muted-foreground))">No fuel pressure data available.</text>
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

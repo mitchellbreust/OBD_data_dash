@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, Eye } from "lucide-react"
+import { authAPI } from "@/services/api"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -34,20 +35,14 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
-
-    // TODO: Replace with real API call
-    // const response = await fetch('/api/register', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password })
-    // })
-
-    // Simulate API call
-    setTimeout(() => {
-      console.log("[v0] Mock register API call:", { email, password })
-      setLoading(false)
+    try {
+      await authAPI.register(email, password)
       router.push("/login")
-    }, 1000)
+    } catch (err: any) {
+      setError(err?.message || "Registration failed")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -78,7 +78,6 @@ __pycache__/
 *.pem
 *.crt
 *.cert
-*.json
 
 # =======================================
 # Miscellaneous

@@ -66,6 +66,11 @@ class DataStore:
                 baro_pressure REAL,
                 catalyst_temp REAL,
                 control_module_voltage REAL,
+                engine_load REAL,
+                fuel_level REAL,
+                fuel_pressure REAL,
+                ambient_air_temp REAL,
+                timing_advance REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
@@ -75,6 +80,19 @@ class DataStore:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_obd_data_user_timestamp ON obd_data(user_id, timestamp)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
+
+        # Backfill migration: add new columns if missing
+        existing_cols = [row[1] for row in cursor.execute('PRAGMA table_info(obd_data)').fetchall()]
+        new_cols = {
+            'engine_load': 'REAL',
+            'fuel_level': 'REAL',
+            'fuel_pressure': 'REAL',
+            'ambient_air_temp': 'REAL',
+            'timing_advance': 'REAL'
+        }
+        for col, col_type in new_cols.items():
+            if col not in existing_cols:
+                cursor.execute(f'ALTER TABLE obd_data ADD COLUMN {col} {col_type}')
         
         conn.commit()
         conn.close()
@@ -128,12 +146,13 @@ class DataStore:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        # Clean up expired sessions
-        cursor.execute('DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP')
+        # Clean up expired sessions (compare using unix epoch seconds)
+        cursor.execute("DELETE FROM sessions WHERE expires_at < strftime('%s','now')")
         
         # Create new session
         session_token = secrets.token_urlsafe(32)
-        expires_at = datetime.now().timestamp() + (7 * 24 * 60 * 60)  # 7 days
+        # Store expires_at as unix epoch seconds (int)
+        expires_at = int(datetime.now().timestamp()) + (7 * 24 * 60 * 60)  # 7 days
         
         cursor.execute(
             'INSERT INTO sessions (user_id, session_token, expires_at) VALUES (?, ?, ?)',
@@ -149,8 +168,9 @@ class DataStore:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
+        # Compare expires_at against current unix epoch seconds
         cursor.execute(
-            'SELECT user_id FROM sessions WHERE session_token = ? AND expires_at > CURRENT_TIMESTAMP',
+            "SELECT user_id FROM sessions WHERE session_token = ? AND expires_at > strftime('%s','now')",
             (session_token,)
         )
         result = cursor.fetchone()
@@ -181,8 +201,9 @@ class DataStore:
                     INSERT INTO obd_data (
                         user_id, timestamp, rpm, speed, cool_temp, throttle_pos,
                         intake_mani_pres, intake_air_temp, maf_air_flow_rate,
-                        run_time, baro_pressure, catalyst_temp, control_module_voltage
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        run_time, baro_pressure, catalyst_temp, control_module_voltage,
+                        engine_load, fuel_level, fuel_pressure, ambient_air_temp, timing_advance
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     user_id,
                     entry.get('timestamp'),
@@ -196,7 +217,12 @@ class DataStore:
                     entry.get('run_time'),
                     entry.get('baro_pressure'),
                     entry.get('catalyst_temp'),
-                    entry.get('control_module_voltage')
+                    entry.get('control_module_voltage'),
+                    entry.get('engine_load'),
+                    entry.get('fuel_level'),
+                    entry.get('fuel_pressure'),
+                    entry.get('ambient_air_temp'),
+                    entry.get('timing_advance')
                 ))
             
             conn.commit()
@@ -241,14 +267,16 @@ class DataStore:
         
         # Optimized conversion to list of dictionaries
         if data_types:
-            # Pre-define the columns we need
-            required_cols = ['id', 'timestamp']
+            # Build entries including only requested columns when present
             data = []
             for row in rows:
                 entry = {'id': row['id'], 'timestamp': row['timestamp']}
+                row_keys = row.keys()
                 for data_type in data_types:
-                    if data_type in row and row[data_type] is not None:
-                        entry[data_type] = row[data_type]
+                    if data_type in row_keys:
+                        value = row[data_type]
+                        if value is not None:
+                            entry[data_type] = value
                 data.append(entry)
         else:
             # Use list comprehension for better performance

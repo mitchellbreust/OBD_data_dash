@@ -1,5 +1,7 @@
 "use client"
 
+"use client"
+
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,13 +14,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { authAPI } from "@/services/api"
+import { useEffect, useState } from "react"
 
 export function Navigation() {
   const router = useRouter()
   const pathname = usePathname()
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
-  const handleLogout = () => {
+  useEffect(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null")
+      setUserEmail(u?.email ?? null)
+    } catch {
+      setUserEmail(null)
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout()
+    } catch (e) {
+      // ignore errors, proceed to clear local state
+    }
     localStorage.removeItem("token")
     localStorage.removeItem("user")
     router.push("/login")
@@ -73,7 +91,7 @@ export function Navigation() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 text-foreground">
                   <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">{user?.email || "User"}</span>
+                  <span className="hidden sm:inline">{userEmail || "User"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-card border-border">

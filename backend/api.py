@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from functools import wraps
 import re
 import os
@@ -9,6 +10,7 @@ from datastore import datastore
 from csv_parser import csv_parser
 
 app = Flask(__name__)
+cors = CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}}, supports_credentials=False)
 app.secret_key = 'your-secret-key-change-this-in-production'
 
 # Upload configuration
@@ -32,7 +34,13 @@ SUPPORTED_DATA = [
     "run_time",
     "baro_pressure",
     "catalyst_temp",
-    "control_module_voltage"
+    "control_module_voltage",
+    # Newly supported
+    "engine_load",
+    "fuel_level",
+    "fuel_pressure",
+    "ambient_air_temp",
+    "timing_advance"
 ]
 
 def require_auth(f):

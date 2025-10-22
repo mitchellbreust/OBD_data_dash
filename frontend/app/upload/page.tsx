@@ -65,30 +65,40 @@ export default function UploadPage() {
 
   const parseCSVData = (csvText: string) => {
     const lines = csvText.split("\n").filter((line) => line.trim())
-    const headers = lines[0].split(",")
+    const speeds: number[] = []
+    const rpms: number[] = []
+    const temps: number[] = []
 
-    const data = []
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(",")
-      const row: any = {}
-      headers.forEach((header, index) => {
-        row[header.trim()] = values[index]?.trim()
-      })
-      data.push(row)
+    for (const rawLine of lines) {
+      const line = rawLine.trim()
+      if (!line) continue
+      const parts = line.split(",")
+      if (parts.length < 2) continue
+      // parts[0] is timestamp; subsequent parts are key=value
+      for (let i = 1; i < parts.length; i++) {
+        const kv = parts[i]
+        const eqIdx = kv.indexOf("=")
+        if (eqIdx === -1) continue
+        const key = kv.slice(0, eqIdx).trim()
+        const valueStr = kv.slice(eqIdx + 1).trim()
+        const value = Number.parseFloat(valueStr)
+        if (Number.isNaN(value)) continue
+        if (key === "Vehicle Speed") speeds.push(value)
+        else if (key === "Engine Coolant Temperature") temps.push(value)
+        else if (key === "RPM" || key === "Engine RPM" || key === "Engine Speed") rpms.push(value)
+      }
     }
 
-    // Calculate summary statistics
-    const speeds = data.map((d) => Number.parseFloat(d["Vehicle Speed"]) || 0)
-    const rpms = data.map((d) => Number.parseFloat(d["RPM"]) || 0)
-    const temps = data.map((d) => Number.parseFloat(d["Engine Coolant Temperature"]) || 0)
+    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0)
+    const max = (arr: number[]) => (arr.length ? Math.max(...arr) : 0)
 
     return {
-      recordCount: data.length,
-      avgSpeed: speeds.reduce((a, b) => a + b, 0) / speeds.length,
-      maxSpeed: Math.max(...speeds),
-      avgRPM: rpms.reduce((a, b) => a + b, 0) / rpms.length,
-      maxRPM: Math.max(...rpms),
-      avgTemp: temps.reduce((a, b) => a + b, 0) / temps.length,
+      recordCount: lines.length,
+      avgSpeed: avg(speeds),
+      maxSpeed: max(speeds),
+      avgRPM: avg(rpms),
+      maxRPM: max(rpms),
+      avgTemp: avg(temps),
     }
   }
 
@@ -98,12 +108,12 @@ export default function UploadPage() {
     setLoading(true)
 
     try {
-      // Read and parse the CSV file
+      // Read and parse locally to show a summary
       const text = await file.text()
       const stats = parseCSVData(text)
 
-      // TODO: Replace with real API call
-      await dataAPI.uploadCSV(file)
+      // Real API call
+      await dataAPI.uploadCSV([file])
 
       setSummary({
         fileName: file.name,

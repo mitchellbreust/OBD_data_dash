@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, Eye } from "lucide-react"
+import { authAPI } from "@/services/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,29 +24,20 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
 
-    // TODO: Replace with real API call
-    // const response = await fetch('/api/login', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password })
-    // })
-    // const data = await response.json()
-    // if (response.ok) {
-    //   localStorage.setItem('token', data.token)
-    //   router.push('/dashboard')
-    // } else {
-    //   setError(data.message)
-    // }
-
-    // Simulate API call
-    setTimeout(() => {
-      console.log("[v0] Mock login API call:", { email, password })
-      // Mock successful login
-      localStorage.setItem("token", "mock-jwt-token-12345")
-      localStorage.setItem("user", JSON.stringify({ email }))
+    try {
+      const data = await authAPI.login(email, password)
+      if (data && data.session_token) {
+        localStorage.setItem("token", data.session_token)
+        localStorage.setItem("user", JSON.stringify({ email }))
+        router.push("/dashboard")
+      } else {
+        setError("Invalid response from server")
+      }
+    } catch (err: any) {
+      setError(err?.message || "Login failed")
+    } finally {
       setLoading(false)
-      router.push("/dashboard")
-    }, 1000)
+    }
   }
 
   return (

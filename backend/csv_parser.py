@@ -23,7 +23,13 @@ class OBDCSVParser:
             'Run Time Since Engine Start': 'run_time',
             'Barometric Pressure': 'baro_pressure',
             'Catalyst Temperature Bank1 Sensor1': 'catalyst_temp',
-            'Control Module Voltage': 'control_module_voltage'
+            'Control Module Voltage': 'control_module_voltage',
+            # Newly supported commonly available PIDs
+            'Calculated Engine Load': 'engine_load',
+            'Fuel Level': 'fuel_level',
+            'Fuel Pressure': 'fuel_pressure',
+            'Ambient Air Temperature': 'ambient_air_temp',
+            'Timing Advance': 'timing_advance'
         }
         
         # Optional fields that might be present in some files but not others
