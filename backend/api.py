@@ -10,7 +10,17 @@ from datastore import datastore
 from csv_parser import csv_parser
 
 app = Flask(__name__)
-cors = CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}}, supports_credentials=False)
+# Secret key from environment for production
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this-in-production')
+
+# CORS: allow origins from env (comma-separated) or local dev defaults
+allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+cors = CORS(
+    app,
+    resources={r"/*": {"origins": [o.strip() for o in allowed_origins if o.strip()]}},
+    supports_credentials=False,
+    allow_headers=["Authorization", "Content-Type"],
+)
 app.secret_key = 'your-secret-key-change-this-in-production'
 
 # Upload configuration
@@ -480,4 +490,4 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

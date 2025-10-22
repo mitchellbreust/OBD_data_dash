@@ -16,7 +16,7 @@ except ImportError:
         "catalyst_temp", "control_module_voltage"
     ]
 
-DATABASE_PATH = 'obd_dashboard.db'
+DATABASE_PATH = os.environ.get('DATABASE_PATH', 'obd_dashboard.db')
 
 class DataStore:
     def __init__(self):
