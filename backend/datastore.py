@@ -320,5 +320,26 @@ class DataStore:
         
         return data
 
+    def delete_obd_data_for_date(self, user_id: int, date_str: str) -> int:
+        """Delete all OBD data rows for a user on a given date (dd-mm-YYYY). Returns number of rows deleted."""
+        try:
+            # Convert dd-mm-YYYY to YYYY-mm-dd for SQLite DATE()
+            try:
+                date_obj = datetime.strptime(date_str, '%d-%m-%Y')
+                formatted_date = date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                return 0
+
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM obd_data WHERE user_id = ? AND DATE(timestamp) = ?', (user_id, formatted_date))
+            affected = cursor.rowcount
+            conn.commit()
+            conn.close()
+            return affected if affected is not None else 0
+        except Exception as e:
+            print(f"Error deleting OBD data: {e}")
+            return 0
+
 # Global datastore instance
 datastore = DataStore()

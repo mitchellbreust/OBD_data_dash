@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Activity, RefreshCw, Gauge, Thermometer, Zap } from "lucide-react"
 import { dataAPI } from "@/services/api"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
@@ -40,6 +41,10 @@ export default function DashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [liveSpeed, setLiveSpeed] = useState<number | null>(null)
   const [liveActive, setLiveActive] = useState(false)
+  const [liveRpm, setLiveRpm] = useState<number | null>(null)
+  const [liveRpmActive, setLiveRpmActive] = useState(false)
+  const [deleteDate, setDeleteDate] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     // Check if user is authenticated
@@ -67,7 +72,7 @@ export default function DashboardPage() {
     let isMounted = true
     const poll = async () => {
       try {
-        const res = await dataAPI.getData({ limit: 1, data_types: ["speed"] })
+        const res = await dataAPI.getData({ limit: 1, data_types: ["speed", "rpm"] })
         const row = res?.data?.[0]
         if (row && row.timestamp) {
           const ts = new Date(row.timestamp).getTime()
@@ -75,10 +80,14 @@ export default function DashboardPage() {
           if (isMounted) {
             setLiveActive(fresh)
             setLiveSpeed(typeof row.speed === "number" ? row.speed : null)
+            setLiveRpmActive(fresh)
+            setLiveRpm(typeof row.rpm === "number" ? row.rpm : null)
           }
         } else if (isMounted) {
           setLiveActive(false)
           setLiveSpeed(null)
+          setLiveRpmActive(false)
+          setLiveRpm(null)
         }
       } catch {
         if (isMounted) {
@@ -179,30 +188,38 @@ export default function DashboardPage() {
             <Activity className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold text-foreground">Vehicle Telemetry</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="dd-mm-yyyy"
+              value={deleteDate}
+              onChange={(e) => setDeleteDate(e.target.value)}
+              className="w-32 h-9 bg-input border-border text-foreground"
+            />
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`border-border ${autoRefresh ? "bg-primary/10 text-primary" : "text-foreground"}`}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`} />
-              {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchData}
+              disabled={!deleteDate || deleting}
+              onClick={async () => {
+                if (!deleteDate) return
+                setDeleting(true)
+                try {
+                  await dataAPI.deleteForDate(deleteDate)
+                  fetchData()
+                } catch (e) {
+                  console.error("Delete failed", e)
+                } finally {
+                  setDeleting(false)
+                }
+              }}
               className="border-border text-foreground bg-transparent"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              {deleting ? "Deleting..." : "Delete Date"}
             </Button>
           </div>
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Live Speed */}
           <Card className="border-border bg-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -223,62 +240,7 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">Updates within ~10s when device is sending</p>
             </CardContent>
           </Card>
-          <Card className="border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Vehicle Speed</CardTitle>
-              <Gauge className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              {hasData("speed") ? (
-                <>
-                  <div className="text-3xl font-bold text-foreground">{speedStats.avg.toFixed(1)} km/h</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Min: {speedStats.min.toFixed(0)} | Max: {speedStats.max.toFixed(0)}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No speed data available for this vehicle.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Engine RPM</CardTitle>
-              <Zap className="h-4 w-4 text-secondary" />
-            </CardHeader>
-            <CardContent>
-              {hasData("rpm") ? (
-                <>
-                  <div className="text-3xl font-bold text-foreground">{rpmStats.avg.toFixed(0)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Min: {rpmStats.min.toFixed(0)} | Max: {rpmStats.max.toFixed(0)}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No RPM data available for this vehicle.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Coolant Temp</CardTitle>
-              <Thermometer className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              {hasData("cool_temp") ? (
-                <>
-                  <div className="text-3xl font-bold text-foreground">{tempStats.avg.toFixed(1)}°C</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Min: {tempStats.min.toFixed(0)} | Max: {tempStats.max.toFixed(0)}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No coolant temperature data available.</p>
-              )}
-            </CardContent>
-          </Card>
+          
         </div>
 
         {/* Speed & RPM Chart */}

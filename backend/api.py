@@ -416,6 +416,19 @@ def upload_data():
     except Exception as e:
         return jsonify({'error': f'Upload processing error: {str(e)}'}), 500
 
+@app.route("/data/delete", methods=['POST'])
+@require_auth
+def delete_data_for_date():
+    try:
+        payload = request.get_json(silent=True) or {}
+        date_str = payload.get('date')
+        if not date_str:
+            return jsonify({'error': 'date is required (dd-mm-YYYY)'}), 400
+        deleted = datastore.delete_obd_data_for_date(request.user_id, date_str)
+        return jsonify({'message': 'Delete complete', 'date': date_str, 'rows_deleted': deleted}), 200
+    except Exception:
+        return jsonify({'error': 'Delete failed'}), 500
+
 @app.route("/health", methods=['GET'])
 def health_check():
     """Health check endpoint"""

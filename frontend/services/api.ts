@@ -85,6 +85,15 @@ export const dataAPI = {
     })
     return handleJSONResponse(res)
   },
+
+  deleteForDate: async (date: string) => {
+    const res = await fetch(`${API_BASE_URL}/data/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ date }),
+    })
+    return handleJSONResponse(res)
+  },
 }
 
 // Device APIs
