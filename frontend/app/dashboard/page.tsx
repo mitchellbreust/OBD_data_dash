@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<OBDDataRow[]>([])
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [liveSpeed, setLiveSpeed] = useState<number | null>(null)
+  const [liveActive, setLiveActive] = useState(false)
 
   useEffect(() => {
     // Check if user is authenticated
@@ -59,6 +61,38 @@ export default function DashboardPage() {
 
     return () => clearInterval(interval)
   }, [autoRefresh])
+
+  // Lightweight live speed poller (auto-toggles based on availability)
+  useEffect(() => {
+    let isMounted = true
+    const poll = async () => {
+      try {
+        const res = await dataAPI.getData({ limit: 1, data_types: ["speed"] })
+        const row = res?.data?.[0]
+        if (row && row.timestamp) {
+          const ts = new Date(row.timestamp).getTime()
+          const fresh = Date.now() - ts < 10000 // 10s freshness window
+          if (isMounted) {
+            setLiveActive(fresh)
+            setLiveSpeed(typeof row.speed === "number" ? row.speed : null)
+          }
+        } else if (isMounted) {
+          setLiveActive(false)
+          setLiveSpeed(null)
+        }
+      } catch {
+        if (isMounted) {
+          setLiveActive(false)
+        }
+      }
+    }
+    const id = setInterval(poll, 2000)
+    poll()
+    return () => {
+      isMounted = false
+      clearInterval(id)
+    }
+  }, [])
 
   const fetchData = async () => {
     try {
@@ -168,7 +202,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Live Speed */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Live Speed</CardTitle>
+                <span className={`text-xs px-2 py-0.5 rounded ${liveActive ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                  {liveActive ? "LIVE" : "idle"}
+                </span>
+              </div>
+              <Gauge className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {liveSpeed != null && liveActive ? (
+                <div className="text-3xl font-bold text-foreground">{liveSpeed.toFixed(0)} km/h</div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Awaiting live data…</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Updates within ~10s when device is sending</p>
+            </CardContent>
+          </Card>
           <Card className="border-border bg-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Vehicle Speed</CardTitle>
