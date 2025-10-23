@@ -416,6 +416,26 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">Updates within ~10s when device is sending</p>
             </CardContent>
           </Card>
+          {/* Live RPM */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Live RPM</CardTitle>
+                <span className={`text-xs px-2 py-0.5 rounded ${liveRpmActive ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                  {liveRpmActive ? "LIVE" : "idle"}
+                </span>
+              </div>
+              <Zap className="h-4 w-4 text-secondary" />
+            </CardHeader>
+            <CardContent>
+              {liveRpm != null && liveRpmActive ? (
+                <div className="text-3xl font-bold text-foreground">{liveRpm.toFixed(0)}</div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Awaiting live data…</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Updates within ~10s when device is sending</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Pressure Metrics */}
