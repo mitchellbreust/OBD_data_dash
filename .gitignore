@@ -85,3 +85,4 @@ __pycache__/
 *.bak
 *.tmp
 *.old
+*.db

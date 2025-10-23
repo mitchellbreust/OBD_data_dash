@@ -27,8 +27,8 @@ cors = CORS(
 )
 app.secret_key = 'your-secret-key-change-this-in-production'
 
-# Upload configuration
-UPLOAD_FOLDER = 'uploads'
+# Upload configuration (allow override for persistent disks)
+UPLOAD_FOLDER = os.environ.get('UPLOAD_DIR', 'uploads')
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
 MAX_FILES_PER_UPLOAD = 20  # Maximum number of files per upload
 ALLOWED_EXTENSIONS = {'csv', 'zip'}
