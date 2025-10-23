@@ -4,10 +4,11 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Activity, RefreshCw, Gauge, Thermometer, Zap } from "lucide-react"
+import { Activity, RefreshCw, Gauge, Zap } from "lucide-react"
 import { dataAPI } from "@/services/api"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 
 interface OBDDataRow {
   id?: number
@@ -43,7 +44,7 @@ export default function DashboardPage() {
   const [liveActive, setLiveActive] = useState(false)
   const [liveRpm, setLiveRpm] = useState<number | null>(null)
   const [liveRpmActive, setLiveRpmActive] = useState(false)
-  const [deleteDate, setDeleteDate] = useState("")
+  const [deleteDay, setDeleteDay] = useState<Date | undefined>(undefined)
   const [deleting, setDeleting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -190,21 +191,29 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold text-foreground">Vehicle Telemetry</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Input
-              placeholder="dd-mm-yyyy"
-              value={deleteDate}
-              onChange={(e) => setDeleteDate(e.target.value)}
-              className="w-32 h-9 bg-input border-border text-foreground"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-9 border-border text-foreground bg-transparent">
+                  {deleteDay ? deleteDay.toLocaleDateString("en-GB") : "Pick date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="p-0 bg-card border-border">
+                <Calendar mode="single" selected={deleteDay} onSelect={setDeleteDay} initialFocus />
+              </PopoverContent>
+            </Popover>
             <Button
               variant="outline"
               size="sm"
-              disabled={!deleteDate || deleting}
+              disabled={!deleteDay || deleting}
               onClick={async () => {
-                if (!deleteDate) return
+                if (!deleteDay) return
                 setDeleting(true)
                 try {
-                  await dataAPI.deleteForDate(deleteDate)
+                  const dd = String(deleteDay.getDate()).padStart(2, '0')
+                  const mm = String(deleteDay.getMonth() + 1).padStart(2, '0')
+                  const yyyy = deleteDay.getFullYear()
+                  const formatted = `${dd}-${mm}-${yyyy}`
+                  await dataAPI.deleteForDate(formatted)
                   fetchData()
                 } catch (e) {
                   console.error("Delete failed", e)
@@ -385,6 +394,26 @@ export default function DashboardPage() {
                   )}
                 </LineChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          {/* Live RPM */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Live RPM</CardTitle>
+                <span className={`text-xs px-2 py-0.5 rounded ${liveRpmActive ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                  {liveRpmActive ? "LIVE" : "idle"}
+                </span>
+              </div>
+              <Zap className="h-4 w-4 text-secondary" />
+            </CardHeader>
+            <CardContent>
+              {liveRpm != null && liveRpmActive ? (
+                <div className="text-3xl font-bold text-foreground">{liveRpm.toFixed(0)}</div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Awaiting live data…</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Updates within ~10s when device is sending</p>
             </CardContent>
           </Card>
         </div>
