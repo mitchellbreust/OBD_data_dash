@@ -432,6 +432,65 @@ def get_supported_data():
         'description': 'Available OBD data types that can be requested'
     }), 200
 
+@app.route("/device/token", methods=['POST'])
+@require_auth
+def create_device_token():
+    try:
+        data = request.get_json(silent=True) or {}
+        name = data.get('name')
+        token = datastore.create_device(request.user_id, name)
+        return jsonify({'device_token': token}), 201
+    except Exception:
+        return jsonify({'error': 'Failed to create device token'}), 500
+
+@app.route("/data/live", methods=['POST'])
+def ingest_live_data():
+    try:
+        payload = request.get_json()
+        if not payload:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        device_token = payload.get('key') or payload.get('device_token')
+        data_items = payload.get('data')
+        if not device_token or not isinstance(data_items, list):
+            return jsonify({'error': 'Invalid payload'}), 400
+
+        user_id = datastore.validate_device(device_token)
+        if not user_id:
+            return jsonify({'error': 'Invalid device token'}), 401
+
+        # Map incoming list of {data_type, data_val} to our schema
+        # Accepts names as per device agent (human names) using csv_parser mapping
+        from csv_parser import OBDCSVParser
+        parser = OBDCSVParser()
+        name_to_db = parser.all_field_mapping
+
+        entries = []
+        from datetime import datetime
+        now_iso = datetime.utcnow().isoformat()
+        row = {'timestamp': now_iso}
+        for item in data_items:
+            key = item.get('data_type')
+            val = item.get('data_val')
+            if key in name_to_db:
+                dbk = name_to_db[key]
+                try:
+                    v = float(val)
+                except Exception:
+                    continue
+                row[dbk] = v
+        if len(row) > 1:
+            entries.append(row)
+
+        if not entries:
+            return jsonify({'error': 'No supported fields found'}), 400
+
+        ok = datastore.insert_obd_data(user_id, entries)
+        if not ok:
+            return jsonify({'error': 'Failed to insert data'}), 500
+        return jsonify({'message': 'Live data accepted', 'rows': len(entries)}), 201
+    except Exception as e:
+        return jsonify({'error': 'Live ingest error'}), 500
+
 @app.route("/data/upload/preview", methods=['POST'])
 @require_auth
 def preview_upload():

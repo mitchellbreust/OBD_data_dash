@@ -86,3 +86,16 @@ export const dataAPI = {
     return handleJSONResponse(res)
   },
 }
+
+// Device APIs
+export const tokenAPI = {
+  createToken: async () => {
+    const res = await fetch(`${API_BASE_URL}/device/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({}),
+    })
+    const data = await handleJSONResponse(res)
+    return { success: true, token: data.device_token }
+  },
+}

@@ -48,6 +48,19 @@ class DataStore:
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
+
+        # Create devices table for device tokens
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                device_token TEXT UNIQUE NOT NULL,
+                name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
         
         # Create obd_data table
         cursor.execute('''
@@ -80,6 +93,7 @@ class DataStore:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_obd_data_user_timestamp ON obd_data(user_id, timestamp)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_devices_token ON devices(device_token)')
 
         # Backfill migration: add new columns if missing
         existing_cols = [row[1] for row in cursor.execute('PRAGMA table_info(obd_data)').fetchall()]
@@ -231,6 +245,28 @@ class DataStore:
         except Exception as e:
             print(f"Error inserting OBD data: {e}")
             return False
+
+    def create_device(self, user_id: int, name: Optional[str] = None) -> str:
+        token = secrets.token_urlsafe(24)
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO devices (user_id, device_token, name) VALUES (?, ?, ?)', (user_id, token, name))
+        conn.commit()
+        conn.close()
+        return token
+
+    def validate_device(self, device_token: str) -> Optional[int]:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id FROM devices WHERE device_token = ?', (device_token,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute('UPDATE devices SET last_seen = CURRENT_TIMESTAMP WHERE device_token = ?', (device_token,))
+            conn.commit()
+            conn.close()
+            return row[0]
+        conn.close()
+        return None
     
     def get_obd_data(self, user_id: int, date: Optional[str] = None, data_types: Optional[List[str]] = None, limit: int = 1000) -> List[Dict[str, Any]]:
         """Retrieve OBD data for a user, optionally filtered by date and data types"""

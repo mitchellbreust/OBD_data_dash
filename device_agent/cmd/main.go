@@ -4,11 +4,34 @@ import (
 	"fmt"
 	"os"
 	"time"
-
+	"encoding/json"
 	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/adapters"
 	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/data"
 	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/protocals"
 )
+
+func loadConf() (bool, string) {
+	// 1. Read the JSON file
+    file, err := os.ReadFile("config.json")
+    if err != nil {
+        panic(err)
+    }
+
+    // 2. Define a struct matching the JSON keys
+    var config struct {
+        LiveUpdates bool   `json:"live_updates"`
+        DeviceID    string `json:"device_id"`
+    }
+
+    // 3. Unmarshal into the struct
+    err = json.Unmarshal(file, &config)
+    if err != nil {
+        panic(err)
+    }
+
+    // 4. Assign to local variables
+    return config.LiveUpdates, config.DeviceID
+}
 
 // main event loop — only using serial adapter while testing
 func main() {
@@ -50,6 +73,12 @@ func main() {
 	ch2 := make(chan []protocals.PidTroubleCode)
 	go data.WriteTroubleCodes(ch2)
 
+	liveU, devId := loadConf()
+	ch3 := make(chan []protocals.PidResponse)
+	if liveU {
+		go data.AddToUploadQ(devId, ch3)
+	}
+
 	// Set lastErrorRead to 90 seconds ago so error check runs immediately
 	lastErrorRead := time.Now().Add(-90 * time.Second)
 	fmt.Println("🚗 Starting continuous data collection...")
@@ -62,6 +91,10 @@ func main() {
 
 		ch <- res
 		time.Sleep(300 * time.Millisecond)
+
+		if liveU {
+			ch3 <- res
+		}
 
 		// Check if 90 seconds have passed since last error code read
 		if time.Since(lastErrorRead).Seconds() >= 90 {
