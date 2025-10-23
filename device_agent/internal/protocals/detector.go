@@ -37,19 +37,25 @@ func DetectSupportedPids(adapter *adapter.SerialAdapter) ([]Pid, error) {
 // isSupportedResponse checks if the response looks valid for a given PID.
 func isSupportedResponse(resp string, pid byte) bool {
 	resp = strings.ToUpper(resp)
-	if strings.Contains(resp, "NO DATA") || 
-		strings.Contains(resp, "?") || 
-		strings.Contains(resp, "UNABLE") ||
-		strings.Contains(resp, "SEARCHING") ||
-		len(resp) == 0 {
-		return false
-	}
+    if len(resp) == 0 {
+        return false
+    }
 
-	// Typical valid response starts with "41" (Mode 01 reply)
-	// and echoes back the PID code: e.g. "41 0C" or "410C" for Engine RPM
-	// Check both formats: with and without spaces
-	expectedNoSpace := fmt.Sprintf("41%02X", pid)
-	expectedWithSpace := fmt.Sprintf("41 %02X", pid)
-	
-	return strings.Contains(resp, expectedNoSpace) || strings.Contains(resp, expectedWithSpace)
+    // Remove transient chatter like SEARCHING from consideration
+    resp = strings.ReplaceAll(resp, "SEARCHING...", "")
+    resp = strings.ReplaceAll(resp, "SEARCHING", "")
+
+    // Typical valid response starts with "41" (Mode 01 reply) and echoes back the PID code
+    expectedNoSpace := fmt.Sprintf("41%02X", pid)
+    expectedWithSpace := fmt.Sprintf("41 %02X", pid)
+    if strings.Contains(resp, expectedNoSpace) || strings.Contains(resp, expectedWithSpace) {
+        return true
+    }
+
+    // If response explicitly says negative keywords and no valid frame, treat as not supported
+    if strings.Contains(resp, "NO DATA") || strings.Contains(resp, "?") || strings.Contains(resp, "UNABLE") {
+        return false
+    }
+
+    return false
 }

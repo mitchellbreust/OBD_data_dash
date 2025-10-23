@@ -1,18 +1,38 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"time"
-	"encoding/json"
-	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/adapters"
-	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/data"
-	"github.com/mitchellbreust/OBD_data_dash/device_agent/internal/protocals"
+    "fmt"
+    "os"
+    "time"
+    "encoding/json"
+    "path/filepath"
+    "github.com/mitchellbreust/OBD_data_dash/device_agent/internal/adapters"
+    "github.com/mitchellbreust/OBD_data_dash/device_agent/internal/data"
+    "github.com/mitchellbreust/OBD_data_dash/device_agent/internal/protocals"
 )
 
 func loadConf() (bool, string) {
-	// 1. Read the JSON file
-    file, err := os.ReadFile("config.json")
+    // Allow config path override via env; otherwise try cwd then cmd/
+    cfgPath := os.Getenv("OBD_AGENT_CONFIG")
+    if cfgPath == "" {
+        // try current working directory
+        if _, err := os.Stat("config.json"); err == nil {
+            cfgPath = "config.json"
+        } else {
+            // try alongside the binary (cmd/config.json)
+            exe, _ := os.Executable()
+            base := filepath.Dir(exe)
+            alt := filepath.Join(base, "config.json")
+            if _, err := os.Stat(alt); err == nil {
+                cfgPath = alt
+            } else {
+                // fallback to project path cmd/config.json
+                cfgPath = filepath.Join("cmd", "config.json")
+            }
+        }
+    }
+
+    file, err := os.ReadFile(cfgPath)
     if err != nil {
         panic(err)
     }

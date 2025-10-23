@@ -69,56 +69,27 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }, [autoRefresh])
 
-  // Lightweight live speed poller (auto-toggles based on availability)
-  useEffect(() => {
-    let isMounted = true
-    const poll = async () => {
-      try {
-        const res = await dataAPI.getData({ limit: 1, data_types: ["speed", "rpm"] })
-        const row = res?.data?.[0]
-        if (row && row.timestamp) {
-          const ts = new Date(row.timestamp).getTime()
-          const fresh = Date.now() - ts < 10000 // 10s freshness window
-          if (isMounted) {
-            setLiveActive(fresh)
-            setLiveSpeed(typeof row.speed === "number" ? row.speed : null)
-            setLiveRpmActive(fresh)
-            setLiveRpm(typeof row.rpm === "number" ? row.rpm : null)
-          }
-        } else if (isMounted) {
-          setLiveActive(false)
-          setLiveSpeed(null)
-          setLiveRpmActive(false)
-          setLiveRpm(null)
-        }
-      } catch {
-        if (isMounted) {
-          setLiveActive(false)
-        }
-      }
-    }
-    const id = setInterval(poll, 2000)
-    poll()
-    return () => {
-      isMounted = false
-      clearInterval(id)
-    }
-  }, [])
+  // Live tiles reflect the most recent fetched data row (same source as charts)
 
   const fetchData = async () => {
     try {
       const response = await dataAPI.getData({
         limit: 500,
       })
-      if (response?.data) {
-        if (response.data.length > 0) {
-          // Log the first row returned by the backend
-          console.log("/data first row:", response.data[0])
-        } else {
-          console.log("/data returned no rows")
-        }
+      const rows = response?.data || []
+      if (rows.length > 0) {
+        const latest = rows[0]
+        setLiveSpeed(typeof latest.speed === "number" ? latest.speed : null)
+        setLiveActive(typeof latest.speed === "number")
+        setLiveRpm(typeof latest.rpm === "number" ? latest.rpm : null)
+        setLiveRpmActive(typeof latest.rpm === "number")
+      } else {
+        setLiveSpeed(null)
+        setLiveActive(false)
+        setLiveRpm(null)
+        setLiveRpmActive(false)
       }
-      setData(response?.data || [])
+      setData(rows)
     } catch (error) {
       console.error("Failed to fetch data:", error)
     } finally {

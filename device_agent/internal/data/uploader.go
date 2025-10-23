@@ -34,7 +34,8 @@ func passPidListToJsonStr(list []protocals.PidResponse) []UploadData {
 }
 
 func AddToUploadQ(device_id string, ch <-chan []protocals.PidResponse) {
-	requestURL := "https://obd-data-dash.onrender.com/data/upload"
+    // Live ingest endpoint (no browser CORS, device authenticates via body key)
+    requestURL := "https://obd-data-dash.onrender.com/data/live"
 
 	for batch := range ch {
 		time.Sleep(300 * time.Millisecond)
