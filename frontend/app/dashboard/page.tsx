@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [liveRpmActive, setLiveRpmActive] = useState(false)
   const [deleteDate, setDeleteDate] = useState("")
   const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     // Check if user is authenticated
@@ -214,6 +215,22 @@ export default function DashboardPage() {
               className="border-border text-foreground bg-transparent"
             >
               {deleting ? "Deleting..." : "Delete Date"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                setRefreshing(true)
+                try {
+                  await fetchData()
+                } finally {
+                  // brief delay so the user can perceive action
+                  setTimeout(() => setRefreshing(false), 300)
+                }
+              }}
+              className="border-border text-foreground bg-transparent"
+            >
+              {refreshing ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
         </div>
